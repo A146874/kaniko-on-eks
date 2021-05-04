@@ -1,0 +1,42 @@
+apiVersion: batch/v1 
+kind: Job 
+metadata:   
+  name: kaniko-build-example   
+spec:   
+  template: # template for what the pods that run this job will look like
+    metadata:       
+      name: kaniko-build-example       
+    spec:
+      serviceAccountName: pipeline-deployment # Pod will run using this service account instead of the default SA
+      containers:       
+      - name: kaniko         
+        image: gcr.io/kaniko-project/executor
+        args: ["--destination=$AWS_ACCOUNT_NUM.dkr.ecr.$AWS_REGION.amazonaws.com/dummy", "--context=tar:///docker-context/docker-context.tar.gz"]
+        env:
+        - name: AWS_REGION
+          value: <AWS_REGION>
+        - name: $AWS_ACCOUNT_NUM
+          value: <$AWS_ACCOUNT_NUM>
+        volumeMounts:
+        - name: docker-context # Mount the docker context tarball to the pod
+          mountPath: "/docker-context"
+          readOnly: true
+        - name: docker-config # Mount the docker config json file to the pod
+          mountPath: /kaniko/.docker/
+      volumes:
+      - name: docker-context
+        configMap:
+          name: my-docker-context
+      - name: docker-config
+        configMap:
+          name: docker-config
+      restartPolicy: Never
+---
+# This config map tells kaniko to use IAM roles to authenticate to ECR
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: docker-config
+data:
+  config.json: |-
+    { "credsStore": "ecr-login" }
